@@ -1,0 +1,9 @@
+{
+  "name": "udp-hole-punching-example",
+  "license": "BSD-3-Clause",
+  "dependencies": {
+    "dgram": "^1.0.1",
+    "shell": "^0.3.2",
+    "stun": "0.0.3"
+  }
+}
