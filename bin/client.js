@@ -7,7 +7,9 @@ const app = new shell({ chdir: __dirname })
 
 let client = null;
 
-// Configure the shell environment
+/**
+ * シェル環境の設定を行います。
+ */
 app.configure(() => {
   app.use(shell.history({
     shell: app
@@ -24,13 +26,17 @@ app.configure(() => {
   }));
 });
 
-// Run client command
+/**
+ * メッセージ送信/受信可能なクライアントを作成して立ち上げます。
+ * コマンドの引数に0を指定した場合は適当なポートが割り当てられます。
+ * コマンド例: run 9011
+ */
 app.cmd('run :port', '\tRun client', (req, res, next) => {
-  // STUN Server (by Google)
+  // STUNサーバー (by Google)
   const stunPort = 19302;
   const stunHost = 'stun.l.google.com';
 
-  // STUN Client
+  // STUNクライアントを作成(このクライアントはメッセージの送信/受信も可能)
   client = stun.connect(stunPort, stunHost);
   client.on('error', (err) => {
     res.red('Error:', err);
@@ -39,16 +45,16 @@ app.cmd('run :port', '\tRun client', (req, res, next) => {
   const clientSocket = client._socket;
   const clientPort = parseInt(req.params.port);
   if (clientPort) {
-    clientSocket.bind(clientPort);
+    clientSocket.bind(clientPort); // コマンドでポートが指定された場合にのみバインド
   }
 
+  // 端末のIPとポートの一覧をコンソール出力
   const interfaces = os.networkInterfaces();
   const clientAddresses = [];
   Object.keys(interfaces).forEach((nic) => {
     clientAddresses.push(ip.address(nic, 'ipv4'));
     clientAddresses.push(ip.address(nic, 'ipv6'));
   });
-
   clientSocket.on('listening', () => {
     const port = clientSocket.address().port;
     res.blue('Run Clint: Addresses [').ln();
@@ -59,10 +65,9 @@ app.cmd('run :port', '\tRun client', (req, res, next) => {
     res.blue(']').ln().ln();
   });
 
-  // Client: STUN Response event handler
+  // STUNサーバーからレスポンスが返ってきた際のハンドラ
   client.on('response', (packet) => {
     console.log('Received STUN:', packet);
-    // Save NAT Address
     let natAddress = null;
     if (packet.attrs[stun.attribute.XOR_MAPPED_ADDRESS]) {
       natAddress = packet.attrs[stun.attribute.XOR_MAPPED_ADDRESS];
@@ -73,20 +78,22 @@ app.cmd('run :port', '\tRun client', (req, res, next) => {
     res.prompt();
   });
 
-  // Client: UDP Message event handler
+  // 他端末からUDPによるメッセージを受信した際のハンドラ
   client.on('message', (msg, rinfo) => {
-    // res.blue('Received UDP message:', msg.toString(), 'from', rinfo.address).ln();
     res.blue(`Received UDP message: ${msg.toString()} from [${rinfo.address}]:${rinfo.port}`).ln();
     res.prompt();
   });
 
-  // Sending STUN request
+  // STUNサーバーにリクエスト送信
   client.request(() => {
     res.green('Sending STUN packet').ln().ln();
   });
 });
 
-// Send message command
+/**
+ * 他端末へUDPへメッセージを送信します。
+ * コマンド例: send 32.1.5.26 9011
+ */
 app.cmd('send :address :port :msg', '\tSend message', (req, res, next) => {
   const destHost = req.params.address;
   const destPort = parseInt(req.params.port);
